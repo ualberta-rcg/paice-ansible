@@ -1,0 +1,124 @@
+- name: Install and Configure Slurm Job Exporter
+  hosts: localhost
+  become: true
+  environment:
+    PATH: "/opt/slurm-job-exporter/venv/bin:{{ ansible_env.PATH }}"
+
+  vars:
+    slurm_exporter_dir: "/opt/slurm-job-exporter"
+    slurm_exporter_repo: "https://github.com/guilbaults/slurm-job-exporter.git"
+    slurm_exporter_script: "/opt/slurm-job-exporter/slurm-job-exporter.py"
+    slurm_exporter_service_src: "/opt/slurm-job-exporter/slurm-job-exporter.service"
+    slurm_exporter_service_dest: "/etc/systemd/system/slurm-job-exporter.service"
+
+  tasks:
+    - name: Create Slurm Job Exporter directory
+      file:
+        path: "{{ slurm_exporter_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Clone Slurm Job Exporter repository
+      git:
+        repo: "{{ slurm_exporter_repo }}"
+        dest: "{{ slurm_exporter_dir }}"
+        clone: yes
+        update: yes
+
+    - name: Create Python virtual environment
+      command: python3 -m venv "{{ slurm_exporter_dir }}/venv"
+
+    - name: Install required Python packages
+      command: "{{ slurm_exporter_dir }}/venv/bin/pip install -r {{ slurm_exporter_dir }}/requirements.txt"
+
+    - name: Ensure slurm-job-exporter.py has correct shebang
+      lineinfile:
+        path: "{{ slurm_exporter_script }}"
+        line: "#!/usr/bin/env python3"
+        insertbefore: BOF
+
+    - name: Modify systemd service file path
+      replace:
+        path: "{{ slurm_exporter_service_src }}"
+        regexp: '/var/run'
+        replace: '/run'
+
+    - name: Link slurm-job-exporter to /usr/bin
+      file:
+        src: "{{ slurm_exporter_script }}"
+        dest: "/usr/bin/slurm-job-exporter"
+        state: link
+        mode: '0755'
+
+    - name: Copy Slurm Job Exporter service file to systemd
+      copy:
+        src: "{{ slurm_exporter_service_src }}"
+        dest: "{{ slurm_exporter_service_dest }}"
+        mode: '0644'
+        remote_src: yes
+
+          #    - name: Download CUDA keyring
+          #      get_url:
+          #        url: "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb"
+          #        dest: "/tmp/cuda-keyring_1.1-1_all.deb"
+
+          #    - name: Install CUDA keyring
+          #      apt:
+          #        deb: "/tmp/cuda-keyring_1.1-1_all.deb"
+
+          #    - name: Update APT cache
+          #      apt:
+          #        update_cache: yes
+
+          #    - name: Upgrade all packages
+          #      apt:
+          #        upgrade: yes
+
+          #    - name: Install Datacenter GPU Manager (DCGM)
+          #      apt:
+          #        name: datacenter-gpu-manager
+          #        state: present
+
+          #    - name: Start NVIDIA DCGM service
+          #      service:
+          #        name: nvidia-dcgm
+          #        state: started
+          #        enabled: yes
+
+          #    - name: Remove CUDA keyring to revoke access
+          #      file:
+          #        path: "/etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list"
+          #        state: absent
+
+          #    - name: Remove CUDA keyring package
+          #      apt:
+          #        name: cuda-keyring
+          #        state: absent
+
+          #    - name: Clean up APT cache
+          #      apt:
+          #        autoclean: yes
+          #        autoremove: yes
+
+          #    - name: Remove downloaded keyring package
+          #      file:
+          #        path: "/tmp/cuda-keyring_1.1-1_all.deb"
+          #        state: absent
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Stop Slurm Job Exporter service ( If It's Running ) 
+      service:
+        name: slurm-job-exporter 
+        state: stopped
+
+    - name: Start and Enable Slurm Job Exporter service
+      service:
+        name: slurm-job-exporter
+        state: started
+        enabled: yes
+          

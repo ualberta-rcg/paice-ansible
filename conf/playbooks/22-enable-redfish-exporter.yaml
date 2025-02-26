@@ -1,0 +1,14 @@
+- name: Enable and Restart Redfish Exporter
+  hosts: localhost
+  become: true
+
+  vars:
+    redfish_service: "redfish-exporter"
+
+  tasks:
+    - name: Enable and restart Redfish Exporter
+      systemd:
+        name: "{{ redfish_service }}"
+        enabled: yes
+        state: restarted
+

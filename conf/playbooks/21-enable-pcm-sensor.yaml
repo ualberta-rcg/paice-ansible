@@ -1,0 +1,28 @@
+- name: Install and Enable PCM Sensor Server
+  hosts: localhost
+  become: true
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    package_list:
+      - pcm
+    pcm_service: "pcm-sensor-server"
+
+  tasks:
+    - name: Install PCM package
+      apt:
+        name: "{{ package_list }}"
+        state: present
+        update_cache: yes
+      register: pcm_install
+      until: pcm_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Enable and start PCM Sensor Server
+      systemd:
+        name: "{{ pcm_service }}"
+        enabled: yes
+        state: restarted
+

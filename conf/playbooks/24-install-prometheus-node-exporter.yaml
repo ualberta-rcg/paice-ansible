@@ -1,0 +1,28 @@
+- name: Install and Enable Prometheus Node Exporter
+  hosts: localhost
+  become: true
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    package_list:
+      - prometheus-node-exporter
+    service_name: "prometheus-node-exporter"
+
+  tasks:
+    - name: Install Prometheus Node Exporter
+      apt:
+        name: "{{ package_list }}"
+        state: present
+        update_cache: yes
+      register: prometheus_install
+      until: prometheus_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Enable and restart Prometheus Node Exporter service
+      systemd:
+        name: "{{ service_name }}"
+        enabled: yes
+        state: restarted
+

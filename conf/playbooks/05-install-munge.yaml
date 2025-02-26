@@ -1,0 +1,44 @@
+- name: Install and Configure Munge
+  hosts: localhost
+  become: true
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    package_list:
+      - munge
+      - libmunge-dev
+      - libmunge2
+    munge_service: "munge"
+    munge_key_path: "/etc/munge/munge.key"
+
+  tasks:
+    - name: Install Munge and dependencies
+      apt:
+        name: "{{ package_list }}"
+        state: present
+        update_cache: yes
+      register: munge_install
+      until: munge_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Ensure Munge key exists
+      file:
+        path: "{{ munge_key_path }}"
+        state: touch
+        mode: "0400"
+        owner: "munge"
+        group: "munge"
+
+    - name: Stop Munge service (if running)
+      service:
+        name: "{{ munge_service }}"
+        state: stopped
+
+    - name: Start Munge service
+      service:
+        name: "{{ munge_service }}"
+        state: started
+        enabled: yes
+

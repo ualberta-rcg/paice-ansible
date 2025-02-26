@@ -1,0 +1,62 @@
+- name: Install and Configure CVMFS
+  hosts: localhost
+  become: true
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    cvmfs_repo_url: "https://cvmrepo.s3.cern.ch/cvmrepo/apt/cvmfs-release-latest_all.deb"
+    cvmfs_deb_path: "/tmp/cvmfs-release.deb"
+    package_list:
+      - cvmfs
+      - cvmfs-fuse3
+
+  tasks:
+    - name: Download CVMFS release package
+      get_url:
+        url: "{{ cvmfs_repo_url }}"
+        dest: "{{ cvmfs_deb_path }}"
+        mode: '0644'
+
+    - name: Install CVMFS release package
+      apt:
+        deb: "{{ cvmfs_deb_path }}"
+      register: cvmfs_release_install
+      until: cvmfs_release_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Update apt cache after installing CVMFS release package
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Remove CVMFS release package file
+      file:
+        path: "{{ cvmfs_deb_path }}"
+        state: absent
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install CVMFS packages
+      apt:
+        name: "{{ package_list }}"
+        state: present
+      register: cvmfs_install
+      until: cvmfs_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Run CVMFS setup
+      command: cvmfs_config setup
+      register: cvmfs_setup
+      changed_when: "'already set up' not in cvmfs_setup.stdout"
+
+    - name: Run CVMFS probe
+      command: cvmfs_config probe
+      register: cvmfs_probe
+      changed_when: false
+      failed_when: "cvmfs_probe.rc != 0"
+

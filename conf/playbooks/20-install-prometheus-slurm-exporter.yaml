@@ -1,0 +1,73 @@
+- name: Install and Configure Prometheus Slurm Exporter
+  hosts: localhost
+  become: true
+  environment:
+    GOPATH: "/tmp/go"
+    GOMODCACHE: "/tmp/go/pkg/mod"
+    GOCACHE: "/tmp/go/cache"
+
+  vars:
+    go_package: "golang"
+    slurm_exporter_repo: "https://github.com/guilbaults/prometheus-slurm-exporter.git"
+    slurm_exporter_dir: "/opt/prometheus-slurm-exporter"
+    slurm_exporter_binary: "/usr/sbin/prometheus-slurm-exporter"
+    slurm_exporter_service: "prometheus-slurm-exporter"
+
+  tasks:
+    - name: Install Golang
+      apt:
+        name: "{{ go_package }}"
+        state: present
+        update_cache: yes
+      register: golang_install
+      until: golang_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Create required directories for Go cache
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "/tmp/go"
+        - "/tmp/go/pkg/mod"
+        - "/tmp/go/cache"
+
+    - name: Clone Prometheus Slurm Exporter repository
+      git:
+        repo: "{{ slurm_exporter_repo }}"
+        dest: "{{ slurm_exporter_dir }}"
+        version: osc
+        clone: yes
+        update: yes
+
+    - name: Build Prometheus Slurm Exporter
+      command: make build
+      args:
+        chdir: "{{ slurm_exporter_dir }}"
+
+    - name: Copy built Prometheus Slurm Exporter binary
+      copy:
+        src: "{{ slurm_exporter_dir }}/prometheus-slurm-exporter"
+        dest: "{{ slurm_exporter_binary }}"
+        mode: '0755'
+        remote_src: yes
+
+    - name: Remove Prometheus Slurm Exporter source directory
+      file:
+        path: "{{ slurm_exporter_dir }}"
+        state: absent
+
+    - name: Remove Golang after build
+      apt:
+        name: "{{ go_package }}"
+        state: absent
+      when: golang_install is succeeded
+
+    - name: Enable and start Prometheus Slurm Exporter service
+      systemd:
+        name: "{{ slurm_exporter_service }}"
+        enabled: yes
+        state: started
+

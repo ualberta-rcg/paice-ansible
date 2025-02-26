@@ -1,0 +1,60 @@
+- name: Install and Configure Zabbix Agent (Ubuntu 24.04)
+  hosts: localhost
+  become: true
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    zabbix_repo_url: "https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.0+ubuntu24.04_all.deb"
+    zabbix_deb_path: "/tmp/zabbix-release.deb"
+    zabbix_conf_path: "/etc/zabbix/zabbix_agentd.conf"
+    zabbix_server_ip: "192.168.1.0/24"
+    package_list:
+      - zabbix-agent
+
+  tasks:
+    - name: Download Zabbix release package
+      get_url:
+        url: "{{ zabbix_repo_url }}"
+        dest: "{{ zabbix_deb_path }}"
+        mode: '0644'
+
+    - name: Install Zabbix release package
+      apt:
+        deb: "{{ zabbix_deb_path }}"
+      register: zabbix_release_install
+      until: zabbix_release_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Update apt cache after installing Zabbix release package
+      apt:
+        update_cache: yes
+
+    - name: Remove Zabbix release package file
+      file:
+        path: "{{ zabbix_deb_path }}"
+        state: absent
+
+    - name: Install required Zabbix packages
+      apt:
+        name: "{{ package_list }}"
+        state: present
+        update_cache: yes
+      register: zabbix_agent_install
+      until: zabbix_agent_install is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Configure Zabbix agent with server IP
+      replace:
+        path: "{{ zabbix_conf_path }}"
+        regexp: '^Server=.*'
+        replace: "Server={{ zabbix_server_ip }}"
+
+    - name: Restart Zabbix agent service
+      service:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes
+

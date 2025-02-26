@@ -1,0 +1,29 @@
+- name: System Preparation and Initial Setup
+  hosts: localhost
+  become: true
+
+  vars:
+    timezone: "UTC"
+    username: "wwuser"
+    password: "wwpassword"
+
+  tasks:
+    - name: Set system timezone to UTC
+      command: timedatectl set-timezone "{{ timezone }}"
+      changed_when: false
+
+    - name: Set TZ environment variable in /etc/environment
+      lineinfile:
+        path: /etc/environment
+        line: 'TZ=UTC'
+        create: yes
+
+    - name: Ensure NVIDIA modules are loaded
+      command: "{{ item }}"
+      loop:
+        - nvidia-modprobe
+        - nvidia-smi
+        - depmod -a
+        - modprobe nvidia
+      ignore_errors: yes
+

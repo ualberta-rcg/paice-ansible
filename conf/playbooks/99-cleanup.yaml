@@ -1,0 +1,54 @@
+- name: System Cleanup and Optimization
+  hosts: localhost
+  become: true
+
+  vars:
+    remove_packages:
+      - make
+      - cmake
+      - golang
+    remove_directories:
+      - "/NVIDIA-Linux*"
+      - "/*.sh"
+      - "/*.xml"
+      - "/usr/src/*"
+      - "/slurm-debs"
+      - "/tmp/*"
+      - "/var/tmp/*"
+      - "/var/cache/apt/archives/*"
+      - "/var/lib/apt/lists/*"
+
+  tasks:
+    - name: Remove unnecessary directories and files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ remove_directories }}"
+
+    - name: Remove unnecessary packages
+      apt:
+        name: "{{ remove_packages }}"
+        state: absent
+      register: package_removal
+
+    - name: Autoremove orphaned packages
+      apt:
+        autoremove: yes
+
+    - name: Clean up APT cache
+      apt:
+        autoclean: yes
+
+    - name: Free up space by clearing journal logs
+      command: journalctl --vacuum-time=1d
+      ignore_errors: yes
+
+    - name: Sync filesystem to ensure deletions are committed
+      command: sync
+
+    - name: Restart Slurm-Job-Exporter Service ( It just Helps )
+      systemd:
+        name: slurm-job-exporter
+        enabled: yes
+        state: restarted
+        

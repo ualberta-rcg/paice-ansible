@@ -1,0 +1,49 @@
+- name: Install Slurm from .deb files in one go
+  hosts: localhost
+  become: yes
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+
+  vars:
+    deb_directory: "/slurm-debs/"
+    exclude_keywords:
+      - slurmdbd
+      - slurmctld
+      - slurmrestd
+
+  tasks:
+    - name: Find all .deb files in the directory
+      find:
+        paths: "{{ deb_directory }}"
+        patterns: "*.deb"
+        file_type: file
+      register: deb_files
+
+    - name: Filter .deb files to exclude unwanted ones
+      set_fact:
+        install_list: "{{ deb_files.files | map(attribute='path') | reject('search', item) | list }}"
+      loop: "{{ exclude_keywords }}"
+      loop_control:
+        loop_var: item
+
+    - name: Display the filtered .deb files to be installed
+      debug:
+        msg: "{{ install_list }}"
+
+    - name: Install all Slurm .deb packages at once with apt-get
+      command: >
+        apt-get install -y {{ install_list | join(' ') }}
+      when: install_list | length > 0
+
+    - name: Remove the deb_directory after installation
+      file:
+        path: "{{ deb_directory }}"
+        state: absent
+      when: install_list | length > 0
+
+    - name: Enable and start SlurmD service
+      systemd:
+        name: slurmd
+        enabled: yes
+        state: restarted
+

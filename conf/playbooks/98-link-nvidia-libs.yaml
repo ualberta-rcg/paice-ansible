@@ -1,0 +1,50 @@
+---
+- name: Link NVIDIA libraries
+  hosts: localhost  # Or specify your target hosts
+  become: true     # Run tasks with elevated privileges (root)
+  vars:
+    filename_roots_file: "/etc/ansible/libs.txt" # Path to the file containing filename roots
+    source_lib_dir: "/usr/lib/x86_64-linux-gnu" # Source directory to search for files
+    dest_link_dir: "/usr/lib64/nvidia"        # Destination directory for soft links
+    ld_conf_dir: "/etc/ld.so.conf.d"          # Directory for ld.so configuration files
+    ld_conf_file: "nvidia.conf"               # Name of the ld.so configuration file
+
+  tasks:
+    - name: Ensure destination directory exists
+      file:
+        path: "{{ dest_link_dir }}"
+        state: directory
+        mode: 0755
+      become: true
+
+    - name: Find files matching root "{{ item }}" in "{{ source_lib_dir }}" for each root in file
+      find:
+        paths: "{{ source_lib_dir }}"
+        patterns: "{{ item }}*" # Search for files starting with the root
+        file_type: file
+      register: found_files
+      with_lines: cat {{ filename_roots_file }} # Iterate over lines in the file
+      loop_control:
+        loop_var: item # Filename root from the file
+
+    - name: Create soft links for found files (if any)
+      file:
+        src: "{{ item_found_file.path }}"
+        dest: "{{ dest_link_dir }}/{{ item_found_file.path | basename }}"
+        state: link
+        force: yes # Overwrite existing symlinks if needed
+      loop: "{{ found_files.results | json_query('[].files') | flatten | default([]) }}"
+      loop_control:
+        loop_var: item_found_file
+      when: found_files.results | json_query('[].files') | flatten | length > 0
+
+    - name: Add /usr/lib64/nvidia to ld.so.conf.d
+      copy:
+        content: "/usr/lib64/nvidia\n" # Add newline at the end
+        dest: "{{ ld_conf_dir }}/{{ ld_conf_file }}"
+        mode: 0644
+      become: true
+
+    - name: Run ldconfig to update library cache
+      command: /sbin/ldconfig # Or /usr/sbin/ldconfig depending on your system
+      become: true        
