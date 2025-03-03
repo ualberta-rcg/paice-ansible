@@ -10,6 +10,7 @@
     slurm_exporter_script: "/opt/slurm-job-exporter/slurm-job-exporter.py"
     slurm_exporter_service_src: "/opt/slurm-job-exporter/slurm-job-exporter.service"
     slurm_exporter_service_dest: "/etc/systemd/system/slurm-job-exporter.service"
+    get_gpus_script: "/opt/slurm-job-exporter/get_gpus.sh"
 
   tasks:
     - name: Create Slurm Job Exporter directory
@@ -49,6 +50,13 @@
       file:
         src: "{{ slurm_exporter_script }}"
         dest: "/usr/bin/slurm-job-exporter"
+        state: link
+        mode: '0755'
+
+    - name: Link get_gpus.sh to /usr/bin
+      file:
+        src: "{{ get_gpus_script }}"
+        dest: "/usr/bin/get_gpus.sh"
         state: link
         mode: '0755'
 

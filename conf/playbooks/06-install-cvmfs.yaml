@@ -60,3 +60,8 @@
       changed_when: false
       failed_when: "cvmfs_probe.rc != 0"
 
+    - name: Replace lesspipe call
+      lineinfile:
+        path: /etc/skel/.bashrc
+        regexp: '^\[ -x /usr/bin/lesspipe \] && eval "\$\(SHELL=/bin/sh lesspipe\)"$'
+        line: '[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh /usr/bin/lesspipe)"'
